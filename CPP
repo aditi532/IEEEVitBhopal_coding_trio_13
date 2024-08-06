@@ -1,0 +1,45 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <torch/torch.h>
+#include <transformers/transformers.h>
+using namespace std;
+string model_name = "bert-base-uncased";
+auto model = transformers::AutoModelForSequenceClassification::from_pretrained(model_name);
+auto tokenizer = transformers::AutoTokenizer::from_pretrained(model_name);
+vector<string> preprocess_text(const string& text) {
+  auto inputs = tokenizer.encode_plus(
+    text,
+    add_special_tokens=true,
+    max_length=512,
+    return_attention_mask=true,
+    return_tensors="pt"
+  );
+  auto input_ids = inputs["input_ids"].to(torch::kLong);
+  auto attention_mask = inputs["attention_mask"].to(torch::kLong);
+  vector<string> input_tensors;
+  input_tensors.push_back(input_ids);
+  input_tensors.push_back(attention_mask);
+  return input_tensors;
+}
+vector<string> run_model(const vector<string>& input_tensors) {
+  auto outputs = model(input_tensors);
+  auto output_text = torch::argmax(outputs.logits).item();
+  vector<string> output_texts;
+  output_texts.push_back(output_text);
+  return output_texts;
+}
+string postprocess_output(const vector<string>& output_texts) {
+  auto output_text = output_texts[0];
+  return output_text;
+}
+int main() {
+  string text;
+  cout << "Enter text: ";
+  getline(std::cin, text);
+  auto input_tensors = preprocess_text(text);
+  auto output_texts = run_model(input_tensors);
+  auto final_output = postprocess_output(output_texts);
+  cout << "Output: " << final_output << endl;
+  return 0;
+}
