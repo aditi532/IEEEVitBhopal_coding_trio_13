@@ -1,0 +1,39 @@
+import pandas as pd
+from diffusers import StableDiffusionPipeline, StableDiffusionInpaintPipeline
+from transformers import CLIPProcessor, CLIPModel
+import os
+import tqdm
+import torch
+import numpy as np
+from PIL import Image
+
+topics = pd.read_csv('topics.csv')
+
+pipe = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1", use_auth_token=False).to("cuda")
+
+model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+def generate_image(topic):
+
+    image = pipe([topic])['images'][0]
+    return image
+
+def get_similar_topics(topic):
+    text_feat = model.get_text_features(**processor.tokenizer([topic], return_tensors='pt'))
+
+    image_feats = []
+    for t in topics['topic']:
+        img = Image.open(f'images/{t}.png')
+        img_feat = model.get_image_features(pixel_values=processor(img, return_tensors='pt')['pixel_values'])
+        image_feats.append(img_feat)
+
+    sim = torch.cosine_similarity(text_feat, torch.cat(image_feats, 0))
+    return sim.topk(5)
+
+topic = 'space exploration'
+image = generate_image(topic)
+image.save(f'images/{topic}.png')
+
+similar_topics = get_similar_topics(topic)
+print(similar_topics)
